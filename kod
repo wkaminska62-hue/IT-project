@@ -1,0 +1,178 @@
+# Sekcja: Importy bibliotek
+# Tutaj importujemy niezbędne moduły: Tkinter do GUI, pandas do przetwarzania danych CSV, 
+# matplotlib do tworzenia wykresów, WordCloud (choć tu nie używany, na przyszłość), 
+# i Counter do liczenia wystąpień (np. krajów). To podstawa aplikacji – bez tego nie ruszymy!
+
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from wordcloud import WordCloud  # Na przyszłość, jeśli dodamy wordcloud
+from collections import Counter
+
+# Sekcja: Zmienne globalne
+# Definiujemy globalny DataFrame 'df' – to miejsce na załadowane dane z CSV. 
+# Początkowo None, bo czekamy na użytkownika. To pozwala unikać błędów przy wizualizacjach.
+
+df = None
+
+# Sekcja: Główne okno aplikacji (GUI setup)
+# Tworzymy główne okno Tkinter: ustawiamy tytuł, rozmiar, minimalny rozmiar i tło (ciemny Netflix). 
+# Dodajemy styl dla przycisków (czerwony akcent). To sprawia, że app wygląda profesjonalnie i nowocześnie.
+
+root = tk.Tk()
+root.title("Netflix Data Analyzer")
+root.geometry("900x650")
+root.minsize(800, 600)
+root.configure(bg="#141414")  # Ciemne tło jak w Netflix
+
+# Styl dla elementów GUI
+style = ttk.Style()
+style.theme_use("clam")
+style.configure("TButton", font=("Helvetica", 11, "bold"), padding=12)
+style.map("TButton", background=[("active", "#c40710")])
+
+# Sekcja: Nagłówek aplikacji
+# Dodajemy duży, czerwony nagłówek – to wizualny punkt startowy, informujący o nazwie app.
+
+header = tk.Label(root, text="Netflix Data Analyzer", font=("Helvetica", 24, "bold"),
+                  bg="#141414", fg="#E50914")
+header.pack(pady=25)
+
+# Sekcja: Funkcja ładowania pliku CSV
+# Ta funkcja otwiera dialog wyboru pliku, ładuje dane do 'df' za pomocą pandas. 
+# Pokazuje komunikat sukcesu z liczbą rekordów lub błąd. Aktywuje przycisk generowania po załadowaniu.
+
+def load_csv():
+    global df
+    file_path = filedialog.askopenfilename(
+        title="Select Netflix CSV file",
+        filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+    )
+    if file_path:
+        try:
+            df = pd.read_csv(file_path)
+            messagebox.showinfo("Success", f"File loaded successfully!\n{len(df):,} titles found")
+            btn_generate.config(state="normal")
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not load file:\n{e}")
+
+# Przycisk do ładowania
+btn_load = ttk.Button(root, text="Open CSV File", command=load_csv)
+btn_load.pack(pady=12)
+
+# Sekcja: Lista predefiniowanych wizualizacji
+# Definiujemy listę 5 schematów wizualizacji na podstawie Twojego zapytania. 
+# To kluczowa część – użytkownik wybiera z tej listy, co chce zobaczyć.
+
+visualizations = [
+    "1. Content Type on Netflix (Movie vs TV Show)",
+    "2. Growth in Content Over the Years",
+    "3. Original Release Year of the Movies",
+    "4. Content from Different Countries",
+    "5. Distribution of Movie Duration"
+]
+
+# Ramka na listę
+list_frame = tk.Frame(root, bg="#141414")
+list_frame.pack(pady=20, fill="both", expand=True, padx=40)
+
+tk.Label(list_frame, text="Select a visualization:", font=("Helvetica", 14, "bold"),
+         bg="#141414", fg="white").pack(anchor="w", pady=(0, 8))
+
+listbox = tk.Listbox(list_frame, font=("Helvetica", 11), height=12,
+                     bg="#221f1f", fg="white", selectbackground="#E50914",
+                     highlightthickness=0, relief="flat")
+for item in visualizations:
+    listbox.insert(tk.END, item)
+listbox.pack(fill="both", expand=True)
+
+# Sekcja: Funkcja generowania wizualizacji
+# To serce aplikacji: sprawdza, czy dane załadowane, pobiera wybór użytkownika, 
+# tworzy nowe okno z wykresem. Dla każdego schematu przetwarza dane i rysuje wykres 
+# (pie, line, bar, histogram). Używa jasnego tła i czerwonych kolorów dla czytelności.
+
+def generate_visualization():
+    if df is None:
+        messagebox.showerror("Error", "First load a CSV file!")
+        return
+    if not listbox.curselection():
+        messagebox.showerror("Error", "Please select a visualization!")
+        return
+
+    idx = listbox.curselection()[0]
+    title = visualizations[idx]
+
+    # Nowe okno na wykres
+    plot_win = tk.Toplevel(root)
+    plot_win.title(title)
+    plot_win.geometry("1100x800")
+    plot_win.configure(bg="white")
+
+    # Styl wykresu: jasny i czytelny
+    plt.style.use('default')
+    fig, ax = plt.subplots(figsize=(14, 9), facecolor='white')
+    ax.set_facecolor('white')
+
+    netflix_red = "#E50914"
+    colors_bar = ["#E50914", "#B81D24", "#E88A8F", "#FF4D4D", "#FF6666",
+                  "#FF8080", "#FF9999", "#FFB3B3", "#FFCCCC", "#FFE5E5"]
+
+    if idx == 0:  # 1. Content Type (Pie Chart)
+        counts = df['type'].value_counts()
+        ax.pie(counts, labels=counts.index, autopct='%1.1f%%', startangle=90,
+               colors=[netflix_red, "#221f1f"], textprops={'fontsize': 16, 'fontweight': 'bold'},
+               wedgeprops={'linewidth': 3, 'edgecolor': 'white'})
+        ax.set_title("Content Type on Netflix (Movie vs TV Show)", fontsize=22, fontweight='bold', pad=30)
+
+    elif idx == 1:  # 2. Growth in Content Over the Years (Line Plot)
+        df['year_added'] = pd.to_datetime(df['date_added'], errors='coerce').dt.year
+        yearly = df.groupby('year_added').size()
+        yearly.plot(ax=ax, color=netflix_red, linewidth=5, marker='o', markersize=8)
+        ax.set_title("Growth in Content Over the Years", fontsize=22, fontweight='bold', pad=30)
+        ax.set_xlabel("Year Added", fontsize=14)
+        ax.set_ylabel("Number of Titles", fontsize=14)
+        ax.grid(True, axis='y', linestyle='--', alpha=0.7)
+
+    elif idx == 2:  # 3. Original Release Year of the Movies (Bar Plot / Histogram)
+        movies = df[df['type'] == 'Movie']
+        movies['release_year'].value_counts().sort_index().plot.bar(ax=ax, color=netflix_red, edgecolor='black')
+        ax.set_title("Original Release Year of the Movies", fontsize=22, fontweight='bold', pad=30)
+        ax.set_xlabel("Release Year", fontsize=14)
+        ax.set_ylabel("Number of Movies", fontsize=14)
+
+    elif idx == 3:  # 4. Content from Different Countries (Bar Plot Top 10)
+        countries = Counter([c.strip() for sub in df['country'].dropna() for c in sub.split(',')])
+        top = pd.Series(countries).nlargest(10)[::-1]
+        top.plot.barh(ax=ax, color=colors_bar[:len(top)])
+        ax.set_title("Content from Different Countries (Top 10)", fontsize=22, fontweight='bold', pad=30)
+        ax.set_xlabel("Number of Titles", fontsize=14)
+
+    elif idx == 4:  # 5. Distribution of Movie Duration (Histogram)
+        movies = df[df['type'] == 'Movie']
+        movies['duration_min'] = movies['duration'].str.extract('(\d+)').astype(float)  # Parsujemy minuty
+        movies['duration_min'].dropna().hist(ax=ax, bins=20, color=netflix_red, edgecolor='black')
+        ax.set_title("Distribution of Movie Duration (in Minutes)", fontsize=22, fontweight='bold', pad=30)
+        ax.set_xlabel("Duration (minutes)", fontsize=14)
+        ax.set_ylabel("Number of Movies", fontsize=14)
+
+    # Wspólne ustawienia: duże czcionki, pogrubione etykiety
+    ax.tick_params(axis='both', labelsize=12)
+    for label in ax.get_xticklabels() + ax.get_yticklabels():
+        label.set_fontweight('bold')
+    plt.tight_layout()
+
+    # Wyświetlenie w oknie
+    canvas = FigureCanvasTkAgg(fig, master=plot_win)
+    canvas.draw()
+    canvas.get_tk_widget().pack(fill="both", expand=True, padx=20, pady=20)
+
+# Przycisk generowania
+btn_generate = ttk.Button(root, text="Generate Visualization", command=generate_visualization, state="disabled")
+btn_generate.pack(pady=20)
+
+# Sekcja: Uruchomienie aplikacji
+# To ostatnia linia – uruchamia pętlę GUI, dzięki czemu app czeka na interakcje użytkownika.
+
+root.mainloop()
